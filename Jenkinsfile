@@ -45,7 +45,7 @@ pipeline {
 
                     docker run -d \
                     --name ${CONTAINER_NAME} \
-                    -p 8085:80 \
+                    -p 8090:80 \
                     ${IMAGE_NAME}:latest
                 '''
             }
