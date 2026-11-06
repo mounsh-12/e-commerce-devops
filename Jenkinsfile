@@ -5,6 +5,7 @@ pipeline {
     environment {
         IMAGE_NAME = "ecommerce-store"
         CONTAINER_NAME = "ecommerce-container"
+        APP_PORT = "8082"
     }
 
     stages {
@@ -18,10 +19,10 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image'
+                echo 'Building updated Docker image'
 
                 sh '''
-                    docker build \
+                    docker build --pull --no-cache \
                     -t ${IMAGE_NAME}:${BUILD_NUMBER} \
                     -t ${IMAGE_NAME}:latest .
                 '''
@@ -61,7 +62,7 @@ pipeline {
 
                     docker run -d \
                     --name ${CONTAINER_NAME} \
-                    -p 8082:80 \
+                    -p ${APP_PORT}:80 \
                     ${IMAGE_NAME}:latest
                 '''
             }
@@ -69,7 +70,7 @@ pipeline {
 
         stage('Deployment Verification') {
             steps {
-                echo 'Verifying application deployment'
+                echo 'Verifying E-commerce deployment'
 
                 sh '''
                     docker ps --filter name=${CONTAINER_NAME}
@@ -83,11 +84,12 @@ pipeline {
 
     post {
         success {
-            echo 'E-commerce DevSecOps pipeline completed!'
+            echo 'E-commerce DevSecOps pipeline completed successfully!'
         }
 
         failure {
-            echo 'Pipeline failed. Check security scan and deployment logs.'
+            echo 'Pipeline failed. Check the failed stage and console output.'
         }
     }
 }
+
