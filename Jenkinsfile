@@ -28,6 +28,22 @@ pipeline {
             }
         }
 
+        stage('Trivy Security Scan') {
+            steps {
+                echo 'Scanning Docker image for vulnerabilities'
+
+                sh '''
+                    docker run --rm \
+                    -v /var/run/docker.sock:/var/run/docker.sock \
+                    aquasec/trivy:latest image \
+                    --exit-code 1 \
+                    --severity HIGH,CRITICAL \
+                    --ignore-unfixed \
+                    ${IMAGE_NAME}:latest
+                '''
+            }
+        }
+
         stage('Verify Docker Image') {
             steps {
                 echo 'Verifying Docker image'
@@ -45,7 +61,7 @@ pipeline {
 
                     docker run -d \
                     --name ${CONTAINER_NAME} \
-                    -p 8090:80 \
+                    -p 8082:80 \
                     ${IMAGE_NAME}:latest
                 '''
             }
@@ -53,10 +69,13 @@ pipeline {
 
         stage('Deployment Verification') {
             steps {
-                echo 'Checking container status'
+                echo 'Verifying application deployment'
 
                 sh '''
                     docker ps --filter name=${CONTAINER_NAME}
+
+                    docker exec ${CONTAINER_NAME} \
+                    wget -q -O - http://127.0.0.1/ > /dev/null
                 '''
             }
         }
@@ -64,11 +83,11 @@ pipeline {
 
     post {
         success {
-            echo 'E-commerce deployment completed successfully!'
+            echo 'E-commerce DevSecOps pipeline completed!'
         }
 
         failure {
-            echo 'E-commerce deployment failed. Check Jenkins logs.'
+            echo 'Pipeline failed. Check security scan and deployment logs.'
         }
     }
 }
