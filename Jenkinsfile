@@ -20,6 +20,21 @@ pipeline {
             }
         }
 
+        stage('Playwright Browser Tests') {
+            steps {
+                echo 'Running automated browser tests with Playwright'
+
+                sh '''
+                    docker run --rm --init --ipc=host \
+                    -e CI=true \
+                    --volumes-from jenkins-server \
+                    -w "$WORKSPACE" \
+                    mcr.microsoft.com/playwright:v1.64.1-noble \
+                    bash -lc 'npm ci && npm test'
+                '''
+            }
+        }
+
         stage('SonarQube Code Analysis') {
             steps {
                 echo 'Starting SonarQube code analysis'
@@ -115,6 +130,13 @@ pipeline {
     }
 
     post {
+        always {
+            archiveArtifacts(
+                artifacts: 'playwright-report/**,test-results/**',
+                allowEmptyArchive: true
+            )
+        }
+
         success {
             echo 'E-commerce DevSecOps pipeline completed successfully!'
         }
@@ -124,4 +146,3 @@ pipeline {
         }
     }
 }
-
