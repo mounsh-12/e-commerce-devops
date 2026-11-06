@@ -1,0 +1,21 @@
+
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+
+    container_name: jenkins-server
+
+    restart: unless-stopped
+
+    ports:
+      - "8087:8080"
+      - "60000:60000"
+
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  jenkins_home:
