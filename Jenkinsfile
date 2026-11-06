@@ -9,7 +9,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 echo 'Checking out E-commerce source code'
@@ -17,9 +16,25 @@ pipeline {
             }
         }
 
+        stage('SonarQube Code Analysis') {
+            steps {
+                echo 'Starting SonarQube code analysis'
+
+                withSonarQubeEnv('SonarQube') {
+                    script {
+                        def scannerHome = tool 'SonarScanner'
+
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                echo 'Building updated Docker image'
+                echo 'Building Docker image'
 
                 sh '''
                     docker build --pull --no-cache \
@@ -70,11 +85,9 @@ pipeline {
 
         stage('Deployment Verification') {
             steps {
-                echo 'Verifying E-commerce deployment'
+                echo 'Verifying application deployment'
 
                 sh '''
-                    docker ps --filter name=${CONTAINER_NAME}
-
                     docker exec ${CONTAINER_NAME} \
                     wget -q -O - http://127.0.0.1/ > /dev/null
                 '''
