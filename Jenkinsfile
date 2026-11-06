@@ -2,6 +2,10 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
     environment {
         IMAGE_NAME = "ecommerce-store"
         CONTAINER_NAME = "ecommerce-container"
@@ -27,6 +31,22 @@ pipeline {
                         sh """
                             ${scannerHome}/bin/sonar-scanner
                         """
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Quality Gate') {
+            steps {
+                echo 'Waiting for SonarQube Quality Gate result'
+
+                timeout(time: 5, unit: 'MINUTES') {
+                    script {
+                        def qualityGate = waitForQualityGate(
+                            abortPipeline: true
+                        )
+
+                        echo "SonarQube Quality Gate: ${qualityGate.status}"
                     }
                 }
             }
@@ -63,7 +83,6 @@ pipeline {
         stage('Verify Docker Image') {
             steps {
                 echo 'Verifying Docker image'
-
                 sh 'docker images ${IMAGE_NAME}'
             }
         }
