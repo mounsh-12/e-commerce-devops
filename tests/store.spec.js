@@ -15,6 +15,7 @@ test.describe('E-Commerce Application E2E Tests', () => {
     });
 
     await page.goto('/');
+    await expect(page.locator('#loginPage')).toBeVisible();
   });
 
   async function loginToStore(page) {
@@ -26,7 +27,10 @@ test.describe('E-Commerce Application E2E Tests', () => {
 
     await page.locator('#loginEmail').fill(testUser.email);
     await page.locator('#loginPassword').fill(testUser.password);
-    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.locator('#loginPage button')
+      .filter({ hasText: /^Login$/ })
+      .click();
 
     await expect(page.locator('#storePage')).toBeVisible();
   }
@@ -43,29 +47,47 @@ test.describe('E-Commerce Application E2E Tests', () => {
   });
 
   test('03 - User can navigate from Login to Sign Up', async ({ page }) => {
-    await page.getByRole('button', { name: 'Sign Up' }).click();
+    const signupButton = page.locator(
+      '#loginPage button[onclick="showSignup()"]'
+    );
+
+    await expect(signupButton).toBeVisible();
+    await signupButton.click();
 
     await expect(page.locator('#signupPage')).toBeVisible();
     await expect(page.locator('#loginPage')).toBeHidden();
   });
 
   test('04 - User can navigate from Sign Up back to Login', async ({ page }) => {
-    await page.getByRole('button', { name: 'Sign Up' }).click();
-    await page.locator('#signupPage')
-      .getByRole('button', { name: 'Login' }).click();
+    await page.locator(
+      '#loginPage button[onclick="showSignup()"]'
+    ).click();
+
+    await expect(page.locator('#signupPage')).toBeVisible();
+
+    const loginButton = page.locator(
+      '#signupPage button[onclick="showLogin()"]'
+    );
+
+    await expect(loginButton).toBeVisible();
+    await loginButton.click();
 
     await expect(page.locator('#loginPage')).toBeVisible();
     await expect(page.locator('#signupPage')).toBeHidden();
   });
 
   test('05 - User can create an account', async ({ page }) => {
-    await page.getByRole('button', { name: 'Sign Up' }).click();
+    await page.locator(
+      '#loginPage button[onclick="showSignup()"]'
+    ).click();
 
     await page.locator('#signupName').fill(testUser.name);
     await page.locator('#signupEmail').fill(testUser.email);
     await page.locator('#signupPassword').fill(testUser.password);
 
-    await page.getByRole('button', { name: 'Create Account' }).click();
+    await page.locator('#signupPage button')
+      .filter({ hasText: 'Create Account' })
+      .click();
 
     const savedUser = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('user'))
@@ -77,14 +99,16 @@ test.describe('E-Commerce Application E2E Tests', () => {
 
   test('06 - User can log in successfully', async ({ page }) => {
     await loginToStore(page);
-
     await expect(page.locator('#storePage')).toBeVisible();
   });
 
   test('07 - Invalid login does not open the store', async ({ page }) => {
     await page.locator('#loginEmail').fill('wrong@example.com');
     await page.locator('#loginPassword').fill('WrongPassword');
-    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.locator('#loginPage button')
+      .filter({ hasText: /^Login$/ })
+      .click();
 
     await expect(page.locator('#loginPage')).toBeVisible();
     await expect(page.locator('#storePage')).toBeHidden();
@@ -92,7 +116,6 @@ test.describe('E-Commerce Application E2E Tests', () => {
 
   test('08 - All five products are displayed', async ({ page }) => {
     await loginToStore(page);
-
     await expect(page.locator('#productList .product')).toHaveCount(5);
   });
 
@@ -113,11 +136,9 @@ test.describe('E-Commerce Application E2E Tests', () => {
       ).toBeVisible();
     }
 
-    await expect(page.locator('#productList')).toContainText('₹799');
-    await expect(page.locator('#productList')).toContainText('₹1199');
-    await expect(page.locator('#productList')).toContainText('₹1499');
-    await expect(page.locator('#productList')).toContainText('₹999');
-    await expect(page.locator('#productList')).toContainText('₹499');
+    for (const price of ['₹799', '₹1199', '₹1499', '₹999', '₹499']) {
+      await expect(page.locator('#productList')).toContainText(price);
+    }
   });
 
   test('10 - Every product has an Add to Cart button', async ({ page }) => {
@@ -163,7 +184,9 @@ test.describe('E-Commerce Application E2E Tests', () => {
   test('13 - Checkout rejects incomplete payment details', async ({ page }) => {
     await loginToStore(page);
 
-    await page.getByRole('button', { name: 'Proceed to Payment' }).click();
+    await page.getByRole('button', {
+      name: 'Proceed to Payment'
+    }).click();
 
     await expect(page.locator('#storePage')).toBeVisible();
     await expect(page.locator('#total')).toHaveText('0');
@@ -181,7 +204,9 @@ test.describe('E-Commerce Application E2E Tests', () => {
     await page.locator('#custAddress').fill('Tirupati, Andhra Pradesh');
     await page.locator('#paymentMethod').selectOption('cod');
 
-    await page.getByRole('button', { name: 'Proceed to Payment' }).click();
+    await page.getByRole('button', {
+      name: 'Proceed to Payment'
+    }).click();
 
     await expect(page.locator('#cartItems li')).toHaveCount(0);
     await expect(page.locator('#total')).toHaveText('0');
