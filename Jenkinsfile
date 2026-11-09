@@ -8,14 +8,13 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = "ecommerce-store"
-        CONTAINER_NAME = "ecommerce-container"
-        APP_PORT = "8082"
+        IMAGE_NAME = 'ecommerce-store'
+        CONTAINER_NAME = 'ecommerce-container'
+        APP_PORT = '8082'
     }
 
     stages {
 
-        // Stage 1: Checkout source code
         stage('Checkout') {
             steps {
                 echo 'Checking out E-commerce source code'
@@ -23,12 +22,22 @@ pipeline {
             }
         }
 
-        // Stage 2: Playwright end-to-end testing
         stage('Playwright Browser Tests') {
             steps {
-                echo 'Running Playwright end-to-end tests'
+                echo 'Running Playwright tests with FULL diagnostics'
 
                 sh '''
+                    echo "========== JENKINS CHECKOUT =========="
+                    git log -1 --oneline
+
+                    echo "========== HTML SOURCE =========="
+                    grep -n -A 12 -B 5 "Sign Up" index.html
+
+                    echo "========== TEST SOURCE =========="
+                    grep -n -A 10 -B 5 "openSignup" tests/store.spec.js
+
+                    echo "========== STARTING PLAYWRIGHT =========="
+
                     mkdir -p playwright-report test-results
 
                     docker run --rm --init --ipc=host \
@@ -36,15 +45,32 @@ pipeline {
                         --volumes-from jenkins-server \
                         -w "$WORKSPACE" \
                         mcr.microsoft.com/playwright:v1.64.1-noble \
-                        bash -lc 'npm ci && npx playwright test'
+                        bash -lc '
+                            echo "========== CONTAINER WORKSPACE =========="
+                            pwd
+
+                            echo "========== CONTAINER HTML SOURCE =========="
+                            grep -n -A 12 -B 5 "Sign Up" index.html
+
+                            echo "========== CONTAINER TEST SOURCE =========="
+                            grep -n -A 10 -B 5 "openSignup" tests/store.spec.js
+
+                            echo "========== DEPENDENCY INSTALLATION =========="
+                            npm ci
+
+                            echo "========== PLAYWRIGHT VERSION =========="
+                            npx playwright --version
+
+                            echo "========== RUNNING ALL TESTS =========="
+                            npx playwright test
+                        '
                 '''
             }
         }
 
-        // Stage 3: SonarQube code analysis
         stage('SonarQube Code Analysis') {
             steps {
-                echo 'Starting SonarQube code analysis'
+                echo 'Starting SonarQube analysis'
 
                 withSonarQubeEnv('SonarQube') {
                     script {
@@ -58,7 +84,6 @@ pipeline {
             }
         }
 
-        // Stage 4: SonarQube Quality Gate
         stage('SonarQube Quality Gate') {
             steps {
                 echo 'Checking SonarQube Quality Gate'
@@ -75,10 +100,9 @@ pipeline {
             }
         }
 
-        // Stage 5: Build Docker image
         stage('Build Docker Image') {
             steps {
-                echo 'Building E-commerce Docker image'
+                echo 'Building Docker image'
 
                 sh '''
                     docker build --pull --no-cache \
@@ -88,10 +112,9 @@ pipeline {
             }
         }
 
-        // Stage 6: Trivy vulnerability scan
         stage('Trivy Security Scan') {
             steps {
-                echo 'Scanning Docker image for HIGH and CRITICAL vulnerabilities'
+                echo 'Scanning Docker image'
 
                 sh '''
                     docker run --rm \
@@ -105,7 +128,6 @@ pipeline {
             }
         }
 
-        // Stage 7: Verify Docker image
         stage('Verify Docker Image') {
             steps {
                 echo 'Verifying Docker image'
@@ -114,10 +136,9 @@ pipeline {
             }
         }
 
-        // Stage 8: Deploy application
         stage('Deploy Application') {
             steps {
-                echo 'Deploying E-commerce application'
+                echo 'Deploying application'
 
                 sh '''
                     docker rm -f ${CONTAINER_NAME} || true
@@ -130,10 +151,9 @@ pipeline {
             }
         }
 
-        // Stage 9: Verify deployment
         stage('Deployment Verification') {
             steps {
-                echo 'Verifying deployed application'
+                echo 'Verifying deployment'
 
                 sh '''
                     docker exec ${CONTAINER_NAME} \
@@ -146,9 +166,8 @@ pipeline {
     }
 
     post {
-
         always {
-            echo 'Publishing Playwright test reports'
+            echo 'Publishing Playwright reports'
 
             junit(
                 allowEmptyResults: true,
@@ -166,7 +185,7 @@ pipeline {
         }
 
         failure {
-            echo 'Pipeline failed. Check the failed stage and console output.'
+            echo 'Pipeline failed. Check the failed stage.'
         }
     }
 }
