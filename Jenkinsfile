@@ -33,7 +33,7 @@ pipeline {
                     -e CI=true \
                     --volumes-from jenkins-server \
                     -w "$WORKSPACE" \
-                    mcr.microsoft.com/playwright:v1.65.0-noble \
+                   mcr.microsoft.com/playwright:v1.64.1-noble \ 
                     bash -lc 'npm ci && npx playwright test'
                 '''
             }
