@@ -4,6 +4,7 @@ pipeline {
 
     options {
         skipDefaultCheckout(true)
+        timestamps()
     }
 
     environment {
@@ -13,6 +14,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 echo 'Checking out E-commerce source code'
@@ -22,15 +24,17 @@ pipeline {
 
         stage('Playwright Browser Tests') {
             steps {
-                echo 'Running automated browser tests with Playwright'
+                echo 'Running Playwright end-to-end tests'
 
                 sh '''
+                    mkdir -p playwright-report test-results
+
                     docker run --rm --init --ipc=host \
                     -e CI=true \
                     --volumes-from jenkins-server \
                     -w "$WORKSPACE" \
-                    mcr.microsoft.com/playwright:v1.64.1-noble \
-                    bash -lc 'npm ci && npm test'
+                    mcr.microsoft.com/playwright:v1.65.0-noble \
+                    bash -lc 'npm ci && npx playwright test'
                 '''
             }
         }
@@ -53,7 +57,7 @@ pipeline {
 
         stage('SonarQube Quality Gate') {
             steps {
-                echo 'Waiting for SonarQube Quality Gate result'
+                echo 'Checking SonarQube Quality Gate'
 
                 timeout(time: 5, unit: 'MINUTES') {
                     script {
@@ -61,7 +65,7 @@ pipeline {
                             abortPipeline: true
                         )
 
-                        echo "SonarQube Quality Gate: ${qualityGate.status}"
+                        echo "Quality Gate: ${qualityGate.status}"
                     }
                 }
             }
@@ -69,7 +73,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image'
+                echo 'Building E-commerce Docker image'
 
                 sh '''
                     docker build --pull --no-cache \
@@ -81,7 +85,7 @@ pipeline {
 
         stage('Trivy Security Scan') {
             steps {
-                echo 'Scanning Docker image for vulnerabilities'
+                echo 'Scanning Docker image for HIGH and CRITICAL vulnerabilities'
 
                 sh '''
                     docker run --rm \
@@ -98,6 +102,7 @@ pipeline {
         stage('Verify Docker Image') {
             steps {
                 echo 'Verifying Docker image'
+
                 sh 'docker images ${IMAGE_NAME}'
             }
         }
@@ -119,11 +124,13 @@ pipeline {
 
         stage('Deployment Verification') {
             steps {
-                echo 'Verifying application deployment'
+                echo 'Verifying deployed application'
 
                 sh '''
                     docker exec ${CONTAINER_NAME} \
                     wget -q -O - http://127.0.0.1/ > /dev/null
+
+                    echo "Application deployment verified successfully"
                 '''
             }
         }
@@ -131,6 +138,11 @@ pipeline {
 
     post {
         always {
+            junit(
+                allowEmptyResults: true,
+                testResults: 'test-results/e2e-results.xml'
+            )
+
             archiveArtifacts(
                 artifacts: 'playwright-report/**,test-results/**',
                 allowEmptyArchive: true
