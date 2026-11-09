@@ -4,31 +4,31 @@ const products = [
     id: 1,
     name: "Men's White Shirt",
     price: 799,
-    image: "https://images.unsplash.com/photo-1603252110481-7ba873bf42ab?auto=format&fit=crop&w=600&q=80"
+    image: "images/white-shirt.jpg"
   },
   {
     id: 2,
     name: "Women's Floral Dress",
     price: 1199,
-    image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=600&q=80"
+    image: "images/floral-dress.jpg"
   },
   {
     id: 3,
     name: "Blue Denim Jeans",
     price: 1499,
-    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=600&q=80"
+    image: "images/blue-jeans.jpg"
   },
   {
     id: 4,
     name: "Black Hoodie",
     price: 999,
-    image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=600&q=80"
+    image: "images/black-hoodie.jpg"
   },
   {
     id: 5,
     name: "Cotton T-Shirt",
     price: 499,
-    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80"
+    image: "images/cotton-tshirt.jpg"
   }
 ];
 
@@ -52,10 +52,8 @@ function showProducts() {
     img.loading = 'lazy';
 
     img.onerror = function () {
-      this.onerror = null;
       this.alt = `${product.name} image unavailable`;
-      this.style.visibility = 'hidden';
-      this.parentElement.classList.add('image-unavailable');
+      this.style.border = '2px solid red';
     };
 
     const heading = document.createElement('h3');
@@ -81,9 +79,7 @@ function showProducts() {
 function addToCart(id) {
   const item = products.find(product => product.id === id);
 
-  if (!item) {
-    return;
-  }
+  if (!item) return;
 
   const li = document.createElement('li');
   li.textContent = `${item.name} - ₹${item.price}`;
@@ -138,10 +134,7 @@ function signup() {
     return;
   }
 
-  localStorage.setItem(
-    "user",
-    JSON.stringify({ name, email, password })
-  );
+  localStorage.setItem("user", JSON.stringify({ name, email, password }));
 
   alert("Account created successfully!");
   showLogin();
