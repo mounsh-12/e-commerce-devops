@@ -18,6 +18,15 @@ test.describe('E-Commerce Application E2E Tests', () => {
     await expect(page.locator('#loginPage')).toBeVisible();
   });
 
+  async function openSignup(page) {
+    await page.getByRole('button', {
+      name: 'Sign Up',
+      exact: true
+    }).click();
+
+    await expect(page.locator('#signupPage')).toBeVisible();
+  }
+
   async function loginToStore(page) {
     await page.evaluate((user) => {
       localStorage.setItem('user', JSON.stringify(user));
@@ -28,9 +37,10 @@ test.describe('E-Commerce Application E2E Tests', () => {
     await page.locator('#loginEmail').fill(testUser.email);
     await page.locator('#loginPassword').fill(testUser.password);
 
-    await page.locator('#loginPage button')
-      .filter({ hasText: /^Login$/ })
-      .click();
+    await page.getByRole('button', {
+      name: 'Login',
+      exact: true
+    }).click();
 
     await expect(page.locator('#storePage')).toBeVisible();
   }
@@ -47,58 +57,47 @@ test.describe('E-Commerce Application E2E Tests', () => {
   });
 
   test('03 - User can navigate from Login to Sign Up', async ({ page }) => {
-    const signupButton = page.locator(
-      '#loginPage button[onclick="showSignup()"]'
-    );
+    await openSignup(page);
 
-    await expect(signupButton).toBeVisible();
-    await signupButton.click();
-
-    await expect(page.locator('#signupPage')).toBeVisible();
     await expect(page.locator('#loginPage')).toBeHidden();
   });
 
   test('04 - User can navigate from Sign Up back to Login', async ({ page }) => {
-    await page.locator(
-      '#loginPage button[onclick="showSignup()"]'
-    ).click();
+    await openSignup(page);
 
-    await expect(page.locator('#signupPage')).toBeVisible();
-
-    const loginButton = page.locator(
-      '#signupPage button[onclick="showLogin()"]'
-    );
-
-    await expect(loginButton).toBeVisible();
-    await loginButton.click();
+    await page.locator('#signupPage').getByRole('button', {
+      name: 'Login',
+      exact: true
+    }).click();
 
     await expect(page.locator('#loginPage')).toBeVisible();
     await expect(page.locator('#signupPage')).toBeHidden();
   });
 
   test('05 - User can create an account', async ({ page }) => {
-    await page.locator(
-      '#loginPage button[onclick="showSignup()"]'
-    ).click();
+    await openSignup(page);
 
     await page.locator('#signupName').fill(testUser.name);
     await page.locator('#signupEmail').fill(testUser.email);
     await page.locator('#signupPassword').fill(testUser.password);
 
-    await page.locator('#signupPage button')
-      .filter({ hasText: 'Create Account' })
-      .click();
+    await page.getByRole('button', {
+      name: 'Create Account',
+      exact: true
+    }).click();
 
     const savedUser = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('user'))
     );
 
-    expect(savedUser.email).toBe(testUser.email);
+    expect(savedUser).toEqual(testUser);
     await expect(page.locator('#loginPage')).toBeVisible();
+    await expect(page.locator('#signupPage')).toBeHidden();
   });
 
   test('06 - User can log in successfully', async ({ page }) => {
     await loginToStore(page);
+
     await expect(page.locator('#storePage')).toBeVisible();
   });
 
@@ -106,9 +105,10 @@ test.describe('E-Commerce Application E2E Tests', () => {
     await page.locator('#loginEmail').fill('wrong@example.com');
     await page.locator('#loginPassword').fill('WrongPassword');
 
-    await page.locator('#loginPage button')
-      .filter({ hasText: /^Login$/ })
-      .click();
+    await page.getByRole('button', {
+      name: 'Login',
+      exact: true
+    }).click();
 
     await expect(page.locator('#loginPage')).toBeVisible();
     await expect(page.locator('#storePage')).toBeHidden();
@@ -116,6 +116,7 @@ test.describe('E-Commerce Application E2E Tests', () => {
 
   test('08 - All five products are displayed', async ({ page }) => {
     await loginToStore(page);
+
     await expect(page.locator('#productList .product')).toHaveCount(5);
   });
 
@@ -215,7 +216,9 @@ test.describe('E-Commerce Application E2E Tests', () => {
   test('15 - User can log out successfully', async ({ page }) => {
     await loginToStore(page);
 
-    await page.getByRole('button', { name: 'Logout' }).click();
+    await page.getByRole('button', {
+      name: 'Logout'
+    }).click();
 
     await expect(page.locator('#loginPage')).toBeVisible();
     await expect(page.locator('#storePage')).toBeHidden();
