@@ -1,23 +1,26 @@
 
-FROM nginx:alpine
+FROM nginxinc/nginx-unprivileged:alpine
 
-# Update Alpine packages to include available security fixes
+# Apply available Alpine security updates
+USER root
 RUN apk upgrade --no-cache
 
-# Remove default Nginx website
-RUN rm -rf /usr/share/nginx/html/*
-
-# Copy E-commerce application files
-COPY index.html /usr/share/nginx/html/
-COPY style.css /usr/share/nginx/html/
-COPY script.js /usr/share/nginx/html/
+# Copy application files with appropriate ownership
+COPY --chown=nginx:nginx index.html /usr/share/nginx/html/index.html
+COPY --chown=nginx:nginx style.css /usr/share/nginx/html/style.css
+COPY --chown=nginx:nginx script.js /usr/share/nginx/html/script.js
 
 # Copy custom Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose HTTP port
-EXPOSE 80
+# Switch back to the unprivileged Nginx user
+USER nginx
 
-# Start Nginx
+# Nginx listens on 8080
+EXPOSE 8080
+
+# Container health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
+
 CMD ["nginx", "-g", "daemon off;"]
-

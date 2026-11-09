@@ -11,6 +11,7 @@ pipeline {
         IMAGE_NAME = 'ecommerce-store'
         CONTAINER_NAME = 'ecommerce-container'
         APP_PORT = '8082'
+        CONTAINER_PORT = '8080'
     }
 
     stages {
@@ -132,20 +133,45 @@ pipeline {
             steps {
                 echo 'Verifying Docker image'
 
-                sh 'docker images ${IMAGE_NAME}'
+                sh '''
+                    docker images ${IMAGE_NAME}
+
+                    echo "========== IMAGE USER CONFIGURATION =========="
+
+                    docker image inspect ${IMAGE_NAME}:latest \
+                        --format 'Configured user: {{.Config.User}}'
+
+                    echo "========== IMAGE HEALTH CHECK =========="
+
+                    docker image inspect ${IMAGE_NAME}:latest \
+                        --format '{{json .Config.Healthcheck}}'
+
+                    echo "========== IMAGE EXPOSED PORTS =========="
+
+                    docker image inspect ${IMAGE_NAME}:latest \
+                        --format '{{json .Config.ExposedPorts}}'
+                '''
             }
         }
 
         stage('Deploy Application') {
             steps {
-                echo 'Deploying application'
+                echo 'Deploying hardened application container'
 
                 sh '''
                     docker rm -f ${CONTAINER_NAME} || true
 
                     docker run -d \
                         --name ${CONTAINER_NAME} \
-                        -p ${APP_PORT}:80 \
+                        --restart unless-stopped \
+                        --publish ${APP_PORT}:${CONTAINER_PORT} \
+                        --read-only \
+                        --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+                        --cap-drop ALL \
+                        --security-opt no-new-privileges:true \
+                        --memory 256m \
+                        --cpus 0.5 \
+                        --pids-limit 100 \
                         ${IMAGE_NAME}:latest
                 '''
             }
@@ -153,13 +179,64 @@ pipeline {
 
         stage('Deployment Verification') {
             steps {
-                echo 'Verifying deployment'
+                echo 'Verifying hardened deployment'
 
                 sh '''
-                    docker exec ${CONTAINER_NAME} \
-                        wget -q -O - http://127.0.0.1/ > /dev/null
+                    echo "========== WAITING FOR CONTAINER HEALTH =========="
 
-                    echo "Application deployment verified successfully"
+                    ATTEMPT=0
+                    MAX_ATTEMPTS=30
+
+                    while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
+                        STATUS=$(docker inspect \
+                            --format '{{.State.Status}}' \
+                            ${CONTAINER_NAME})
+
+                        HEALTH=$(docker inspect \
+                            --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
+                            ${CONTAINER_NAME})
+
+                        echo "Container: $STATUS | Health: $HEALTH"
+
+                        if [ "$STATUS" = "running" ] && [ "$HEALTH" = "healthy" ]; then
+                            break
+                        fi
+
+                        if [ "$STATUS" != "running" ]; then
+                            echo "Container is not running"
+                            docker logs ${CONTAINER_NAME}
+                            exit 1
+                        fi
+
+                        ATTEMPT=$((ATTEMPT + 1))
+                        sleep 2
+                    done
+
+                    if [ "$HEALTH" != "healthy" ]; then
+                        echo "Container did not become healthy"
+                        docker logs ${CONTAINER_NAME}
+                        exit 1
+                    fi
+
+                    echo "========== VERIFYING HTTP RESPONSE =========="
+
+                    docker exec ${CONTAINER_NAME} \
+                        wget -q -O - http://127.0.0.1:${CONTAINER_PORT}/ \
+                        > /dev/null
+
+                    echo "========== VERIFYING NON-ROOT USER =========="
+
+                    docker exec ${CONTAINER_NAME} id
+
+                    echo "========== VERIFYING CONTAINER SECURITY =========="
+
+                    docker inspect ${CONTAINER_NAME} \
+                        --format 'Read-only root filesystem: {{.HostConfig.ReadonlyRootfs}}'
+
+                    docker inspect ${CONTAINER_NAME} \
+                        --format 'Dropped capabilities: {{json .HostConfig.CapDrop}}'
+
+                    echo "Application deployment and security verification successful"
                 '''
             }
         }
