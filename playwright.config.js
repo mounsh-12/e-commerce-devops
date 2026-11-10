@@ -1,16 +1,22 @@
-
 const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './tests',
+
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
 
   reporter: [
     ['list'],
-    ['html', { outputFolder: 'playwright-report', open: 'never' }]
+    ['html', {
+      outputFolder: 'playwright-report',
+      open: 'never'
+    }],
+    ['junit', {
+      outputFile: 'test-results/e2e-results.xml'
+    }]
   ],
 
   use: {
@@ -22,7 +28,7 @@ module.exports = defineConfig({
   },
 
   webServer: {
-    command: 'npm run start',
+    command: 'npm start',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 30000

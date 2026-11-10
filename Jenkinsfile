@@ -1,4 +1,3 @@
-
 pipeline {
     agent any
 
@@ -18,52 +17,52 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                echo 'Checking out E-commerce source code'
+                echo 'Checking out source code'
                 checkout scm
             }
         }
 
         stage('Playwright Browser Tests') {
             steps {
-                echo 'Running Playwright tests with FULL diagnostics'
+                echo 'Running Playwright tests and collecting coverage'
 
                 sh '''
-                    echo "========== JENKINS CHECKOUT =========="
-                    git log -1 --oneline
+                    set -eu
 
-                    echo "========== HTML SOURCE =========="
-                    grep -n -A 12 -B 5 "Sign Up" index.html
+                    mkdir -p playwright-report test-results coverage
 
-                    echo "========== TEST SOURCE =========="
-                    grep -n -A 10 -B 5 "openSignup" tests/store.spec.js
-
-                    echo "========== STARTING PLAYWRIGHT =========="
-
-                    mkdir -p playwright-report test-results
+                    rm -f test-results/e2e-results.xml
+                    rm -f coverage/lcov.info
 
                     docker run --rm --init --ipc=host \
                         -e CI=true \
                         --volumes-from jenkins-server \
                         -w "$WORKSPACE" \
-                        mcr.microsoft.com/playwright:v1.64.1-noble \
+                        mcr.microsoft.com/playwright:v1.65.0-noble \
                         bash -lc '
-                            echo "========== CONTAINER WORKSPACE =========="
-                            pwd
+                            set -e
 
-                            echo "========== CONTAINER HTML SOURCE =========="
-                            grep -n -A 12 -B 5 "Sign Up" index.html
-
-                            echo "========== CONTAINER TEST SOURCE =========="
-                            grep -n -A 10 -B 5 "openSignup" tests/store.spec.js
-
-                            echo "========== DEPENDENCY INSTALLATION =========="
                             npm ci
 
-                            echo "========== PLAYWRIGHT VERSION =========="
                             npx playwright --version
 
-                            echo "========== RUNNING ALL TESTS =========="
                             npx playwright test
+
+                            echo "Checking JUnit report"
+
+                            test -s test-results/e2e-results.xml
+
+                            echo "Checking LCOV coverage report"
+
+                            test -s coverage/lcov.info
+
+                            ls -lh \
+                                test-results/e2e-results.xml \
+                                coverage/lcov.info
+
+                            echo "LCOV preview"
+
+                            head -n 15 coverage/lcov.info
                         '
                 '''
             }
@@ -74,10 +73,14 @@ pipeline {
                 echo 'Starting SonarQube analysis'
 
                 withSonarQubeEnv('SonarQube') {
+
                     script {
+
                         def scannerHome = tool 'SonarScanner'
 
                         sh """
+                            test -s coverage/lcov.info
+
                             ${scannerHome}/bin/sonar-scanner
                         """
                     }
@@ -90,7 +93,9 @@ pipeline {
                 echo 'Checking SonarQube Quality Gate'
 
                 timeout(time: 5, unit: 'MINUTES') {
+
                     script {
+
                         def qualityGate = waitForQualityGate(
                             abortPipeline: true
                         )
@@ -136,17 +141,11 @@ pipeline {
                 sh '''
                     docker images ${IMAGE_NAME}
 
-                    echo "========== IMAGE USER CONFIGURATION =========="
-
                     docker image inspect ${IMAGE_NAME}:latest \
                         --format 'Configured user: {{.Config.User}}'
 
-                    echo "========== IMAGE HEALTH CHECK =========="
-
                     docker image inspect ${IMAGE_NAME}:latest \
                         --format '{{json .Config.Healthcheck}}'
-
-                    echo "========== IMAGE EXPOSED PORTS =========="
 
                     docker image inspect ${IMAGE_NAME}:latest \
                         --format '{{json .Config.ExposedPorts}}'
@@ -179,15 +178,14 @@ pipeline {
 
         stage('Deployment Verification') {
             steps {
-                echo 'Verifying hardened deployment'
+                echo 'Verifying application deployment'
 
                 sh '''
-                    echo "========== WAITING FOR CONTAINER HEALTH =========="
-
                     ATTEMPT=0
                     MAX_ATTEMPTS=30
 
                     while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
+
                         STATUS=$(docker inspect \
                             --format '{{.State.Status}}' \
                             ${CONTAINER_NAME})
@@ -203,46 +201,43 @@ pipeline {
                         fi
 
                         if [ "$STATUS" != "running" ]; then
-                            echo "Container is not running"
                             docker logs ${CONTAINER_NAME}
                             exit 1
                         fi
 
                         ATTEMPT=$((ATTEMPT + 1))
                         sleep 2
+
                     done
 
                     if [ "$HEALTH" != "healthy" ]; then
-                        echo "Container did not become healthy"
                         docker logs ${CONTAINER_NAME}
                         exit 1
                     fi
-
-                    echo "========== VERIFYING HTTP RESPONSE =========="
 
                     docker exec ${CONTAINER_NAME} \
                         wget -q -O - http://127.0.0.1:${CONTAINER_PORT}/ \
                         > /dev/null
 
-                    echo "========== VERIFYING NON-ROOT USER =========="
-
+                    echo "Container user:"
                     docker exec ${CONTAINER_NAME} id
 
-                    echo "========== VERIFYING CONTAINER SECURITY =========="
-
+                    echo "Read-only root filesystem:"
                     docker inspect ${CONTAINER_NAME} \
-                        --format 'Read-only root filesystem: {{.HostConfig.ReadonlyRootfs}}'
+                        --format '{{.HostConfig.ReadonlyRootfs}}'
 
+                    echo "Dropped capabilities:"
                     docker inspect ${CONTAINER_NAME} \
-                        --format 'Dropped capabilities: {{json .HostConfig.CapDrop}}'
+                        --format '{{json .HostConfig.CapDrop}}'
 
-                    echo "Application deployment and security verification successful"
+                    echo "Deployment verification successful"
                 '''
             }
         }
     }
 
     post {
+
         always {
             echo 'Publishing Playwright reports'
 
@@ -252,7 +247,7 @@ pipeline {
             )
 
             archiveArtifacts(
-                artifacts: 'playwright-report/**,test-results/**',
+                artifacts: 'playwright-report/**,test-results/**,coverage/**',
                 allowEmptyArchive: true
             )
         }
