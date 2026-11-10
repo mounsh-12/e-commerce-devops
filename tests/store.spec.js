@@ -1,6 +1,4 @@
-
-const { test, expect } = require('@playwright/test');
-
+const { test, expect } = require('./coverage-fixtures');
 const testUser = {
   name: 'Mounish Test',
   email: 'mounish.test@example.com',

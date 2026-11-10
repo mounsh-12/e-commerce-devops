@@ -30,8 +30,10 @@ pipeline {
                     set -eu
 
                     mkdir -p playwright-report test-results coverage
+
                     rm -f test-results/e2e-results.xml
                     rm -f coverage/lcov.info
+                    rm -f coverage/monocart-report.html
 
                     docker run --rm --init --ipc=host \
                         -e CI=true \
@@ -47,7 +49,7 @@ pipeline {
                             echo "Checking Playwright version"
                             npx playwright --version
 
-                            echo "Running all Playwright tests"
+                            echo "Running Playwright tests with coverage"
                             npx playwright test
 
                             echo "Verifying JUnit report"
@@ -56,7 +58,10 @@ pipeline {
                             echo "Verifying LCOV coverage report"
                             test -s coverage/lcov.info
 
-                            echo "Playwright tests and report verification completed"
+                            echo "Verifying Monocart HTML report"
+                            test -s coverage/monocart-report.html
+
+                            echo "Playwright tests and coverage completed"
                         '
                 '''
 
@@ -64,9 +69,12 @@ pipeline {
 
                 sh '''
                     set -eu
+
                     test -s test-results/e2e-results.xml
                     test -s coverage/lcov.info
-                    echo "JUnit and LCOV reports are available"
+                    test -s coverage/monocart-report.html
+
+                    echo "JUnit and coverage reports are available"
                 '''
             }
         }
@@ -81,7 +89,9 @@ pipeline {
 
                         sh """
                             test -s coverage/lcov.info
-                            ${scannerHome}/bin/sonar-scanner
+
+                            ${scannerHome}/bin/sonar-scanner \
+                                -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                         """
                     }
                 }
