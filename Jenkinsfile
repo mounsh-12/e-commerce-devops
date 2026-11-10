@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -38,30 +39,31 @@ pipeline {
                         -e CI=true \
                         --volumes-from jenkins-server \
                         -w "$WORKSPACE" \
-                        mcr.microsoft.com/playwright:v1.65.0-noble \
+                        mcr.microsoft.com/playwright:v1.64.1-noble \
                         bash -lc '
                             set -e
 
+                            echo "Installing dependencies"
                             npm ci
 
+                            echo "Checking Playwright version"
                             npx playwright --version
 
+                            echo "Running all Playwright tests"
                             npx playwright test
 
-                            echo "Checking JUnit report"
-
+                            echo "Verifying JUnit report"
                             test -s test-results/e2e-results.xml
 
-                            echo "Checking LCOV coverage report"
-
+                            echo "Verifying LCOV coverage report"
                             test -s coverage/lcov.info
 
+                            echo "Generated reports"
                             ls -lh \
                                 test-results/e2e-results.xml \
                                 coverage/lcov.info
 
-                            echo "LCOV preview"
-
+                            echo "Coverage report preview"
                             head -n 15 coverage/lcov.info
                         '
                 '''
@@ -73,14 +75,11 @@ pipeline {
                 echo 'Starting SonarQube analysis'
 
                 withSonarQubeEnv('SonarQube') {
-
                     script {
-
                         def scannerHome = tool 'SonarScanner'
 
                         sh """
                             test -s coverage/lcov.info
-
                             ${scannerHome}/bin/sonar-scanner
                         """
                     }
@@ -93,9 +92,7 @@ pipeline {
                 echo 'Checking SonarQube Quality Gate'
 
                 timeout(time: 5, unit: 'MINUTES') {
-
                     script {
-
                         def qualityGate = waitForQualityGate(
                             abortPipeline: true
                         )
@@ -141,12 +138,15 @@ pipeline {
                 sh '''
                     docker images ${IMAGE_NAME}
 
+                    echo "Configured user:"
                     docker image inspect ${IMAGE_NAME}:latest \
-                        --format 'Configured user: {{.Config.User}}'
+                        --format '{{.Config.User}}'
 
+                    echo "Health check:"
                     docker image inspect ${IMAGE_NAME}:latest \
                         --format '{{json .Config.Healthcheck}}'
 
+                    echo "Exposed ports:"
                     docker image inspect ${IMAGE_NAME}:latest \
                         --format '{{json .Config.ExposedPorts}}'
                 '''
@@ -207,7 +207,6 @@ pipeline {
 
                         ATTEMPT=$((ATTEMPT + 1))
                         sleep 2
-
                     done
 
                     if [ "$HEALTH" != "healthy" ]; then
@@ -215,18 +214,20 @@ pipeline {
                         exit 1
                     fi
 
+                    echo "Checking HTTP response"
+
                     docker exec ${CONTAINER_NAME} \
                         wget -q -O - http://127.0.0.1:${CONTAINER_PORT}/ \
                         > /dev/null
 
-                    echo "Container user:"
+                    echo "Checking container user"
                     docker exec ${CONTAINER_NAME} id
 
-                    echo "Read-only root filesystem:"
+                    echo "Checking read-only filesystem"
                     docker inspect ${CONTAINER_NAME} \
                         --format '{{.HostConfig.ReadonlyRootfs}}'
 
-                    echo "Dropped capabilities:"
+                    echo "Checking dropped capabilities"
                     docker inspect ${CONTAINER_NAME} \
                         --format '{{json .HostConfig.CapDrop}}'
 
