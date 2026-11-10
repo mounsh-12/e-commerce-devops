@@ -17,23 +17,21 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out source code'
                 checkout scm
             }
         }
 
         stage('Playwright Browser Tests') {
             steps {
-                echo 'Running Playwright tests and collecting coverage'
+                echo 'Running browser tests and generating coverage'
 
                 sh '''
                     set -eu
 
                     mkdir -p playwright-report test-results coverage
-
-                    rm -f test-results/e2e-results.xml
+                    rm -rf coverage/raw
                     rm -f coverage/lcov.info
-                    rm -f coverage/monocart-report.html
+                    rm -f test-results/e2e-results.xml
 
                     docker run --rm --init --ipc=host \
                         -e CI=true \
@@ -41,57 +39,48 @@ pipeline {
                         -w "$WORKSPACE" \
                         mcr.microsoft.com/playwright:v1.64.1-noble \
                         bash -lc '
-                            set -e
+                            set -eu
 
-                            echo "Installing dependencies"
                             npm ci
 
-                            echo "Checking Playwright version"
+                            echo "Playwright version:"
                             npx playwright --version
 
-                            echo "Running Playwright tests with coverage"
+                            echo "Running browser tests:"
                             npx playwright test
 
-                            echo "Verifying JUnit report"
-                            test -s test-results/e2e-results.xml
+                            echo "Generating LCOV:"
+                            node scripts/generate-coverage.js
 
-                            echo "Verifying LCOV coverage report"
+                            echo "Verifying reports:"
+                            test -s test-results/e2e-results.xml
                             test -s coverage/lcov.info
 
-                            echo "Verifying Monocart HTML report"
-                            test -s coverage/monocart-report.html
+                            echo "Coverage report preview:"
+                            head -n 12 coverage/lcov.info
 
-                            echo "Playwright tests and coverage completed"
+                            echo "Browser tests and coverage completed"
                         '
                 '''
 
-                echo 'Verifying reports in Jenkins workspace'
-
                 sh '''
                     set -eu
-
                     test -s test-results/e2e-results.xml
                     test -s coverage/lcov.info
-                    test -s coverage/monocart-report.html
-
-                    echo "JUnit and coverage reports are available"
+                    echo "JUnit and LCOV reports verified in Jenkins"
                 '''
             }
         }
 
         stage('SonarQube Code Analysis') {
             steps {
-                echo 'Starting SonarQube analysis'
-
                 withSonarQubeEnv('SonarQube') {
                     script {
                         def scannerHome = tool 'SonarScanner'
 
                         sh """
                             test -s coverage/lcov.info
-
-                            ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                            ${scannerHome}/bin/sonar-scanner
                         """
                     }
                 }
@@ -100,8 +89,6 @@ pipeline {
 
         stage('SonarQube Quality Gate') {
             steps {
-                echo 'Checking SonarQube Quality Gate'
-
                 timeout(time: 5, unit: 'MINUTES') {
                     script {
                         def qualityGate = waitForQualityGate(
@@ -116,8 +103,6 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image'
-
                 sh '''
                     docker build --pull --no-cache \
                         -t ${IMAGE_NAME}:${BUILD_NUMBER} \
@@ -128,8 +113,6 @@ pipeline {
 
         stage('Trivy Security Scan') {
             steps {
-                echo 'Scanning Docker image'
-
                 sh '''
                     docker run --rm \
                         -v /var/run/docker.sock:/var/run/docker.sock \
@@ -144,20 +127,15 @@ pipeline {
 
         stage('Verify Docker Image') {
             steps {
-                echo 'Verifying Docker image'
-
                 sh '''
                     docker images ${IMAGE_NAME}
 
-                    echo "Configured user:"
                     docker image inspect ${IMAGE_NAME}:latest \
                         --format '{{.Config.User}}'
 
-                    echo "Health check:"
                     docker image inspect ${IMAGE_NAME}:latest \
                         --format '{{json .Config.Healthcheck}}'
 
-                    echo "Exposed ports:"
                     docker image inspect ${IMAGE_NAME}:latest \
                         --format '{{json .Config.ExposedPorts}}'
                 '''
@@ -166,8 +144,6 @@ pipeline {
 
         stage('Deploy Application') {
             steps {
-                echo 'Deploying hardened application container'
-
                 sh '''
                     docker rm -f ${CONTAINER_NAME} || true
 
@@ -189,11 +165,12 @@ pipeline {
 
         stage('Deployment Verification') {
             steps {
-                echo 'Verifying application deployment'
-
                 sh '''
+                    set -eu
+
                     ATTEMPT=0
                     MAX_ATTEMPTS=30
+                    HEALTH=unknown
 
                     while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
                         STATUS=$(docker inspect \
@@ -204,9 +181,10 @@ pipeline {
                             --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
                             ${CONTAINER_NAME})
 
-                        echo "Container: $STATUS | Health: $HEALTH"
+                        echo "Status: $STATUS | Health: $HEALTH"
 
-                        if [ "$STATUS" = "running" ] && [ "$HEALTH" = "healthy" ]; then
+                        if [ "$STATUS" = "running" ] && \
+                           [ "$HEALTH" = "healthy" ]; then
                             break
                         fi
 
@@ -224,20 +202,15 @@ pipeline {
                         exit 1
                     fi
 
-                    echo "Checking HTTP response"
-
                     docker exec ${CONTAINER_NAME} \
-                        wget -q -O - http://127.0.0.1:${CONTAINER_PORT}/ \
-                        > /dev/null
+                        wget -q -O /dev/null \
+                        http://127.0.0.1:${CONTAINER_PORT}/
 
-                    echo "Checking container user"
                     docker exec ${CONTAINER_NAME} id
 
-                    echo "Checking read-only filesystem"
                     docker inspect ${CONTAINER_NAME} \
                         --format '{{.HostConfig.ReadonlyRootfs}}'
 
-                    echo "Checking dropped capabilities"
                     docker inspect ${CONTAINER_NAME} \
                         --format '{{json .HostConfig.CapDrop}}'
 
@@ -249,8 +222,6 @@ pipeline {
 
     post {
         always {
-            echo 'Publishing Playwright reports'
-
             junit(
                 allowEmptyResults: true,
                 testResults: 'test-results/e2e-results.xml'
