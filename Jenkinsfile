@@ -15,7 +15,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 echo 'Checking out source code'
@@ -31,7 +30,6 @@ pipeline {
                     set -eu
 
                     mkdir -p playwright-report test-results coverage
-
                     rm -f test-results/e2e-results.xml
                     rm -f coverage/lcov.info
 
@@ -58,14 +56,17 @@ pipeline {
                             echo "Verifying LCOV coverage report"
                             test -s coverage/lcov.info
 
-                            echo "Generated reports"
-                            ls -lh \
-                                test-results/e2e-results.xml \
-                                coverage/lcov.info
-
-                            echo "Coverage report preview"
-                            head -n 15 coverage/lcov.info
+                            echo "Playwright tests and report verification completed"
                         '
+                '''
+
+                echo 'Verifying reports in Jenkins workspace'
+
+                sh '''
+                    set -eu
+                    test -s test-results/e2e-results.xml
+                    test -s coverage/lcov.info
+                    echo "JUnit and LCOV reports are available"
                 '''
             }
         }
@@ -185,7 +186,6 @@ pipeline {
                     MAX_ATTEMPTS=30
 
                     while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
-
                         STATUS=$(docker inspect \
                             --format '{{.State.Status}}' \
                             ${CONTAINER_NAME})
@@ -238,7 +238,6 @@ pipeline {
     }
 
     post {
-
         always {
             echo 'Publishing Playwright reports'
 
