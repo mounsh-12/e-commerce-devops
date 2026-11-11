@@ -32,9 +32,9 @@ const products = [
   }
 ];
 
-const productList = document.getElementById('productList');
-const cartItems = document.getElementById('cartItems');
-const totalSpan = document.getElementById('total');
+const productList = document.getElementById("productList");
+const cartItems = document.getElementById("cartItems");
+const totalSpan = document.getElementById("total");
 
 let total = 0;
 
@@ -43,28 +43,28 @@ function showProducts() {
   productList.innerHTML = "";
 
   products.forEach(product => {
-    const div = document.createElement('div');
-    div.classList.add('product');
+    const div = document.createElement("div");
+    div.classList.add("product");
 
-    const img = document.createElement('img');
+    const img = document.createElement("img");
     img.src = product.image;
     img.alt = product.name;
-    img.loading = 'lazy';
+    img.loading = "lazy";
 
     img.onerror = function () {
       this.alt = `${product.name} image unavailable`;
-      this.style.border = '2px solid red';
+      this.style.border = "2px solid red";
     };
 
-    const heading = document.createElement('h3');
+    const heading = document.createElement("h3");
     heading.textContent = product.name;
 
-    const price = document.createElement('p');
+    const price = document.createElement("p");
     price.textContent = `Price: ₹${product.price}`;
 
-    const button = document.createElement('button');
-    button.textContent = 'Add to Cart';
-    button.addEventListener('click', () => addToCart(product.id));
+    const button = document.createElement("button");
+    button.textContent = "Add to Cart";
+    button.addEventListener("click", () => addToCart(product.id));
 
     div.appendChild(img);
     div.appendChild(heading);
@@ -81,7 +81,7 @@ function addToCart(id) {
 
   if (!item) return;
 
-  const li = document.createElement('li');
+  const li = document.createElement("li");
   li.textContent = `${item.name} - ₹${item.price}`;
 
   cartItems.appendChild(li);
@@ -92,9 +92,9 @@ function addToCart(id) {
 
 // Payment
 function proceedToPayment() {
-  const name = document.getElementById('custName').value.trim();
-  const address = document.getElementById('custAddress').value.trim();
-  const method = document.getElementById('paymentMethod').value;
+  const name = document.getElementById("custName").value.trim();
+  const address = document.getElementById("custAddress").value.trim();
+  const method = document.getElementById("paymentMethod").value;
 
   if (!name || !address || !method) {
     alert("Please fill in all payment details!");
@@ -106,17 +106,19 @@ function proceedToPayment() {
     return;
   }
 
-  if (method === "gpay") {
-    window.open("https://pay.google.com/", "_blank");
-  } else if (method === "paytm") {
-    window.open("https://paytm.com/", "_blank");
-  } else if (method === "phonepe") {
-    window.open("https://www.phonepe.com/", "_blank");
+  const paymentUrls = {
+    gpay: "https://pay.google.com/",
+    paytm: "https://paytm.com/",
+    phonepe: "https://www.phonepe.com/"
+  };
+
+  if (paymentUrls[method]) {
+    window.open(paymentUrls[method], "_blank", "noopener,noreferrer");
   } else {
     alert("Order placed successfully! Pay with cash on delivery.");
   }
 
-  alert("✅ Payment Processed Successfully!\nThank you for shopping with us!");
+  alert("Thank you for shopping with us!");
 
   cartItems.innerHTML = "";
   total = 0;
@@ -125,16 +127,20 @@ function proceedToPayment() {
 
 // Signup
 function signup() {
-  const name = document.getElementById('signupName').value.trim();
-  const email = document.getElementById('signupEmail').value.trim();
-  const password = document.getElementById('signupPassword').value;
+  const name = document.getElementById("signupName").value.trim();
+  const email = document.getElementById("signupEmail").value.trim();
+  const password = document.getElementById("signupPassword").value;
 
   if (!name || !email || !password) {
     alert("Please fill all fields!");
     return;
   }
 
-  localStorage.setItem("user", JSON.stringify({ name, email, password }));
+  localStorage.setItem("user", JSON.stringify({
+    name,
+    email,
+    password
+  }));
 
   alert("Account created successfully!");
   showLogin();
@@ -142,10 +148,17 @@ function signup() {
 
 // Login
 function login() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  let user;
+
+  try {
+    user = JSON.parse(localStorage.getItem("user"));
+  } catch (error) {
+    alert("Unable to read account information.");
+    return;
+  }
 
   if (user && user.email === email && user.password === password) {
     alert("Login successful!");
@@ -163,21 +176,21 @@ function logout() {
 
 // Navigation
 function showSignup() {
-  document.getElementById('loginPage').style.display = "none";
-  document.getElementById('signupPage').style.display = "block";
-  document.getElementById('storePage').style.display = "none";
+  document.getElementById("loginPage").style.display = "none";
+  document.getElementById("signupPage").style.display = "block";
+  document.getElementById("storePage").style.display = "none";
 }
 
 function showLogin() {
-  document.getElementById('loginPage').style.display = "block";
-  document.getElementById('signupPage').style.display = "none";
-  document.getElementById('storePage').style.display = "none";
+  document.getElementById("loginPage").style.display = "block";
+  document.getElementById("signupPage").style.display = "none";
+  document.getElementById("storePage").style.display = "none";
 }
 
 function showStore() {
-  document.getElementById('loginPage').style.display = "none";
-  document.getElementById('signupPage').style.display = "none";
-  document.getElementById('storePage').style.display = "block";
+  document.getElementById("loginPage").style.display = "none";
+  document.getElementById("signupPage").style.display = "none";
+  document.getElementById("storePage").style.display = "block";
 
   showProducts();
 }
