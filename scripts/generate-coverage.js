@@ -137,17 +137,14 @@ const coveredLines = [...hits.values()]
 
 const lcov = [
     'TN:',
-    'SF:script.js'
+    'SF:script.js',
+    ...[...hits.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([line, count]) => `DA:${line},${count}`),
+    `LF:${hits.size}`,
+    `LH:${coveredLines}`,
+    'end_of_record'
 ];
-
-for (const [line, count] of [...hits.entries()]
-    .sort((a, b) => a[0] - b[0])) {
-    lcov.push(`DA:${line},${count}`);
-}
-
-lcov.push(`LF:${hits.size}`);
-lcov.push(`LH:${coveredLines}`);
-lcov.push('end_of_record');
 
 fs.mkdirSync(path.dirname(outputPath), {
     recursive: true
