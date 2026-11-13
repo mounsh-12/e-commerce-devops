@@ -13,7 +13,7 @@ const test = base.extend({
 
       const coverage = await page.coverage.stopJSCoverage();
 
-      await addCoverageReport(coverage, test.info());
+      await addCoverageReport(sticoverage, test.info());
     },
     {
       scope: 'test',
